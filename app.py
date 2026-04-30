@@ -9,6 +9,8 @@ from pathlib import Path
 import google.generativeai as genai
 import threading
 import webbrowser
+import http.server
+import socketserver
 try:
     import windnd
 except ImportError:
@@ -108,6 +110,25 @@ class HWPXEditorApp(ctk.CTk):
 
         self.current_mode = ""
         self.selected_file = ""
+
+    def check_api_and_update_ui(self):
+        if self.api_key:
+            # API 키가 있으면 가이드 숨기고 버튼 활성화
+            self.guide_frame.pack_forget()
+            self.btn_new.configure(state="normal")
+            self.btn_edit.configure(state="normal")
+            if not self.current_mode:
+                self.mode_label.pack(pady=20)
+        else:
+            # API 키가 없으면 가이드 표시하고 버튼 비활성화
+            self.mode_label.pack_forget()
+            self.guide_frame.pack(fill="both", expand=True)
+            self.btn_new.configure(state="disabled")
+            self.btn_edit.configure(state="disabled")
+
+    def switch_to_main(self):
+        self.guide_frame.pack_forget()
+        self.mode_label.pack(pady=20)
 
     def mode_new(self):
         self.current_mode = "NEW"
@@ -382,6 +403,7 @@ class HWPXEditorApp(ctk.CTk):
         
         build_script = f"""
 import sys
+import json
 from pathlib import Path
 sys.path.insert(0, str(Path(r"{SKILL_DIR / 'scripts'}")))
 from hwpx_helpers import *
