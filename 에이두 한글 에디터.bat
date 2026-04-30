@@ -46,25 +46,16 @@ if not exist "venv" (
     powershell -Command "$local = (Get-Content version.txt -Raw).Trim(); $remote = (Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt').Trim(); if ($local -ne $remote) { exit 1 } else { exit 0 }"
     
     if %errorlevel% equ 1 (
-        for /f "usebackq delims=" %%v in (`powershell -Command "(Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt').Trim()"`) do set "REMOTE_VERSION=%%v"
-        set /p LOCAL_VERSION=<version.txt
-        echo.
-        echo ======================================================
-        echo  [!] New version available: !REMOTE_VERSION! (Current: !LOCAL_VERSION!)
-        echo ======================================================
-        echo.
-        set /p "DO_UPDATE=Update now? (Y/N): "
-        if /i "!DO_UPDATE!"=="Y" (
-            if exist ".git" (
-                echo [*] Updating via Git...
-                git pull
-                echo [*] Done. Please restart.
-                pause
-                exit /b
-            ) else (
-                echo [!] No .git folder. Please download manually.
-                pause
-            )
+        echo [!] New version detected. Updating automatically...
+        if exist ".git" (
+            git pull
+            echo [*] Update complete. Restarting launcher...
+            timeout /t 2 >nul
+            start "" "%~f0"
+            exit /b
+        ) else (
+            echo [!] No .git folder found. Cannot update automatically.
+            pause
         )
     ) else (
         echo [*] Version is up to date.
