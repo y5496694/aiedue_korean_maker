@@ -1,100 +1,91 @@
 @echo off
+setlocal enabledelayedexpansion
 title Aiedu HWP Editor - Launcher
 
 echo ===================================================
-echo   Aiedu HWP Editor: Auto Installer and Launcher
+echo   Aiedu HWP Editor: Launcher and Updater
 echo ===================================================
 
-REM 1. Check Python
+:: 1. Python Check
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Python is not installed.
-    echo Trying to install Python via winget...
+    echo [!] Python not found. Installing via winget...
     winget install --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements
     if %errorlevel% neq 0 (
-        echo Installation failed. Please install Python manually from python.org
+        echo [!] Python installation failed.
         pause
         exit /b
     )
-    echo Installation complete. Please restart this script.
+    echo [!] Please restart this script.
     pause
     exit /b
 )
 
-REM 1.5 Check Git
+:: 2. Git Check
 git --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo.
-    echo [*] Git is not detected. Installing Git for automatic updates...
+    echo [!] Git not found. Installing via winget...
     winget install --id Git.Git --silent --accept-package-agreements --accept-source-agreements
     if %errorlevel% neq 0 (
-        echo [!] Git installation failed. Automatic updates might be limited.
+        echo [!] Git installation failed.
     ) else (
-        echo [*] Git installed successfully. Please restart this script to enable update features.
+        echo [!] Git installed. Please restart this script for updates.
         pause
         exit /b
     )
 )
 
-REM 2. Virtual Env
-if not exist venv (
-    echo Creating virtual environment...
+:: 3. Virtual Env
+if not exist "venv" (
+    echo [*] Creating virtual environment...
     python -m venv venv
 )
 
-setlocal enabledelayedexpansion
-REM 2.5 Update Check
-echo.
-echo [*] Checking for updates...
+:: 4. Update Check
 if exist "version.txt" (
+    echo [*] Checking for updates...
     set /p LOCAL_VERSION=<version.txt
-    powershell -Command "Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt' | Out-File -FilePath 'remote_version.txt' -Encoding ascii"
-    if exist "remote_version.txt" (
-        set /p REMOTE_VERSION=<remote_version.txt
-        del "remote_version.txt"
-    )
     
-    if defined REMOTE_VERSION (
+    :: Use a safer way to get remote version
+    powershell -Command "$v = (Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt').Trim(); $v | Out-File -FilePath 'remote.tmp' -Encoding ascii"
+    
+    if exist "remote.tmp" (
+        set /p REMOTE_VERSION=<remote.tmp
+        del "remote.tmp"
+        
         if not "!LOCAL_VERSION!"=="!REMOTE_VERSION!" (
             echo.
-            echo ======================================================
-            echo  [!] New update available: !REMOTE_VERSION! (Current: !LOCAL_VERSION!)
-            echo ======================================================
-            echo.
-            set /p "UPDATE_CHOICE=Do you want to update now? (Y/N): "
-            if /i "!UPDATE_CHOICE!"=="Y" (
+            echo [!] New version available: !REMOTE_VERSION! (Current: !LOCAL_VERSION!)
+            set /p "DO_UPDATE=Update now? (Y/N): "
+            if /i "!DO_UPDATE!"=="Y" (
                 if exist ".git" (
                     echo [*] Updating via Git...
                     git pull
-                    echo [*] Update complete. Please restart the program.
+                    echo [*] Done. Restarting...
                     pause
-                    exit
+                    exit /b
                 ) else (
-                    echo [!] No Git detected. Please run '에이두_한글_에디터_설치기.bat' to update.
+                    echo [!] No .git folder. Please download manually.
                     pause
                 )
             )
         ) else (
-            echo [*] Running the latest version (!LOCAL_VERSION!).
+            echo [*] Version is up to date: !LOCAL_VERSION!
         )
-    ) else (
-        echo [!] Could not check for updates (Check internet connection).
     )
 )
 
-REM 3. Dependencies
-echo Installing requirements...
+:: 5. Run App
+echo [*] Activating environment and installing dependencies...
 call venv\Scripts\activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install --upgrade pip >nul 2>&1
+pip install -r requirements.txt >nul 2>&1
 
-REM 4. Run
-echo Launching App...
+echo [*] Launching App...
 python app.py
 
 if %errorlevel% neq 0 (
-    echo Error occurred during execution.
+    echo [!] App closed with an error.
     pause
 )
-
 deactivate
