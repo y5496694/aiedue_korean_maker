@@ -33,6 +33,8 @@ class HWPXEditorApp(ctk.CTk):
 
         self.api_key = self.load_settings().get("api_key", "")
         self.last_output_file = ""
+        self.server_thread = None
+        self.server_port = 8888
 
         self.setup_ui()
         self.check_api_and_update_ui()
@@ -129,7 +131,11 @@ class HWPXEditorApp(ctk.CTk):
         self.status_label.pack()
         self.progress.pack(fill="x", padx=40, pady=10)
         self.progress.set(0)
+        self.btn_open_file = ctk.CTkButton(self.input_frame, text="생성된 파일 열기", command=self.open_last_file, fg_color="#27ae60", hover_color="#2ecc71")
         self.btn_open_file.pack(pady=10)
+        
+        self.btn_rhwp = ctk.CTkButton(self.input_frame, text="RHWP로 미리보기 (웹)", command=self.open_rhwp_preview, fg_color="#e67e22", hover_color="#d35400")
+        self.btn_rhwp.pack(pady=5)
 
     def select_file(self):
         filename = filedialog.askopenfilename(filetypes=[("Hangul Files", "*.hwp *.hwpx")])
@@ -159,6 +165,50 @@ class HWPXEditorApp(ctk.CTk):
     def open_last_file(self):
         if self.last_output_file and os.path.exists(self.last_output_file):
             os.startfile(self.last_output_file)
+        else:
+            messagebox.showwarning("경고", "열 수 있는 파일이 없습니다.")
+
+    def open_rhwp_preview(self):
+        if not self.last_output_file or not os.path.exists(self.last_output_file):
+            messagebox.showwarning("경고", "미리보기할 파일이 없습니다.")
+            return
+
+        # Start local server if not running
+        if self.server_thread is None:
+            self.start_server_in_thread()
+        
+        # Construct URL
+        # We need the relative path from the current working directory
+        rel_path = os.path.relpath(self.last_output_file, os.getcwd())
+        # Replace backslashes for URL
+        url_path = rel_path.replace("\\", "/")
+        
+        rhwp_url = f"https://edwardkim.github.io/rhwp/?url=http://127.0.0.1:{self.server_port}/{url_path}"
+        webbrowser.open(rhwp_url)
+
+    def start_server_in_thread(self):
+        class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
+            def end_headers(self):
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Methods', 'GET')
+                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+                return super().end_headers()
+            
+            def log_message(self, format, *args):
+                # Silence server logs
+                pass
+
+        def run_server():
+            while True:
+                try:
+                    with socketserver.TCPServer(("", self.server_port), CORSRequestHandler) as httpd:
+                        httpd.serve_forever()
+                except Exception:
+                    # If port in use, try next one
+                    self.server_port += 1
+
+        self.server_thread = threading.Thread(target=run_server, daemon=True)
+        self.server_thread.start()
 
     def start_process_thread(self):
         if not self.api_key:
@@ -332,7 +382,6 @@ class HWPXEditorApp(ctk.CTk):
         
         build_script = f"""
 import sys
-import json
 from pathlib import Path
 sys.path.insert(0, str(Path(r"{SKILL_DIR / 'scripts'}")))
 from hwpx_helpers import *
