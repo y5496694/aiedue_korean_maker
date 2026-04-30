@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# App Settings (Contains API Key)
+settings.json
+
+# Temporary Files
+temp_*/
+*.img_tmp
+*.hpf_tmp
+temp_builder.py
+temp_plan.json
+temp_kw.json
+temp_map.json
+temp_section.xml
+
+# Output Files
+new_document.hwpx
+edited_*.hwpx
