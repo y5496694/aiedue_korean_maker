@@ -48,7 +48,11 @@ echo.
 echo [*] Checking for updates...
 if exist "version.txt" (
     set /p LOCAL_VERSION=<version.txt
-    for /f "usebackq delims=" %%v in (`powershell -Command "Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt'"`) do set "REMOTE_VERSION=%%v"
+    powershell -Command "Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt' | Out-File -FilePath 'remote_version.txt' -Encoding ascii"
+    if exist "remote_version.txt" (
+        set /p REMOTE_VERSION=<remote_version.txt
+        del "remote_version.txt"
+    )
     
     if defined REMOTE_VERSION (
         if not "!LOCAL_VERSION!"=="!REMOTE_VERSION!" (
