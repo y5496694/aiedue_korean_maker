@@ -42,38 +42,33 @@ if not exist "venv" (
 )
 
 :: 4. Update Check
-if exist "version.txt" (
-    echo [*] Checking for updates...
-    set /p LOCAL_VERSION=<version.txt
+    :: Use PowerShell to compare versions reliably (handles line endings/BOM)
+    powershell -Command "$local = (Get-Content version.txt -Raw).Trim(); $remote = (Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt').Trim(); if ($local -ne $remote) { exit 1 } else { exit 0 }"
     
-    :: Use a safer way to get remote version
-    powershell -Command "$v = (Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt').Trim(); $v | Out-File -FilePath 'remote.tmp' -Encoding ascii"
-    
-    if exist "remote.tmp" (
-        set /p REMOTE_VERSION=<remote.tmp
-        del "remote.tmp"
-        
-        if not "!LOCAL_VERSION!"=="!REMOTE_VERSION!" (
-            echo.
-            echo [!] New version available: !REMOTE_VERSION! (Current: !LOCAL_VERSION!)
-            set /p "DO_UPDATE=Update now? (Y/N): "
-            if /i "!DO_UPDATE!"=="Y" (
-                if exist ".git" (
-                    echo [*] Updating via Git...
-                    git pull
-                    echo [*] Done. Restarting...
-                    pause
-                    exit /b
-                ) else (
-                    echo [!] No .git folder. Please download manually.
-                    pause
-                )
+    if %errorlevel% equ 1 (
+        for /f "usebackq delims=" %%v in (`powershell -Command "(Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt').Trim()"`) do set "REMOTE_VERSION=%%v"
+        set /p LOCAL_VERSION=<version.txt
+        echo.
+        echo ======================================================
+        echo  [!] New version available: !REMOTE_VERSION! (Current: !LOCAL_VERSION!)
+        echo ======================================================
+        echo.
+        set /p "DO_UPDATE=Update now? (Y/N): "
+        if /i "!DO_UPDATE!"=="Y" (
+            if exist ".git" (
+                echo [*] Updating via Git...
+                git pull
+                echo [*] Done. Please restart.
+                pause
+                exit /b
+            ) else (
+                echo [!] No .git folder. Please download manually.
+                pause
             )
-        ) else (
-            echo [*] Version is up to date: !LOCAL_VERSION!
         )
+    ) else (
+        echo [*] Version is up to date.
     )
-)
 
 :: 5. Run App
 echo [*] Activating environment and installing dependencies...
