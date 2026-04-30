@@ -48,7 +48,7 @@ echo.
 echo [*] Checking for updates...
 if exist "version.txt" (
     set /p LOCAL_VERSION=<version.txt
-    for /f "usebackq delims=" %%v in (`powershell -Command "(Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt' -UseBasicParsing).Content.Trim()"`) do set "REMOTE_VERSION=%%v"
+    for /f "usebackq delims=" %%v in (`powershell -Command "Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt'"`) do set "REMOTE_VERSION=%%v"
     
     if defined REMOTE_VERSION (
         if not "!LOCAL_VERSION!"=="!REMOTE_VERSION!" (
