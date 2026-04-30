@@ -355,9 +355,8 @@ class HWPXEditorApp(ctk.CTk):
 {user_prompt}
 
 [작성 규칙]
-1. 순서가 중요한 항목은 '가. 나. 다.' 형태의 말머리를 붙이세요 (type: "ordered").
-2. 단순 나열형 항목은 '●' 기호를 말머리로 사용하세요 (type: "bullet").
-3. 일반 설명 문단은 기호 없이 작성하세요 (type: "text").
+1. 모든 세부 항목은 '가. 나. 다.' 형태의 말머리를 순서대로 붙이세요 (type: "item").
+2. 일반 설명이나 본문 문단은 기호 없이 작성하세요 (type: "text").
 
 [응답 형식 (JSON만 출력)]
 {{
@@ -369,8 +368,8 @@ class HWPXEditorApp(ctk.CTk):
       "number": "I",
       "title": "장 제목",
       "content": [
-        {{ "type": "ordered", "marker": "가", "text": "첫 번째 순서 내용" }},
-        {{ "type": "bullet", "text": "나열형 내용" }},
+        {{ "type": "item", "marker": "가", "text": "첫 번째 항목 내용" }},
+        {{ "type": "item", "marker": "나", "text": "두 번째 항목 내용" }},
         {{ "type": "text", "text": "일반 설명 문단" }}
       ]
     }}
@@ -436,11 +435,9 @@ for i, sec in enumerate(plan.get("sections", [])):
         ctype = item.get("type", "text")
         text = item.get("text", "")
         
-        if ctype == "ordered":
+        if ctype == "item":
             marker = item.get("marker", "가")
             parts.append(make_body_para(f"{{marker}}.", text))
-        elif ctype == "bullet":
-            parts.append(make_body_para("●", text))
         else:
             parts.append(make_text_para(text, charpr="38", parapr="4"))
             
