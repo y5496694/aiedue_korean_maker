@@ -21,6 +21,21 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
+REM 1.5 Check Git
+git --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo.
+    echo [*] Git is not detected. Installing Git for automatic updates...
+    winget install --id Git.Git --silent --accept-package-agreements --accept-source-agreements
+    if %errorlevel% neq 0 (
+        echo [!] Git installation failed. Automatic updates might be limited.
+    ) else (
+        echo [*] Git installed successfully. Please restart this script to enable update features.
+        pause
+        exit /b
+    )
+)
+
 REM 2. Virtual Env
 if not exist venv (
     echo Creating virtual environment...
