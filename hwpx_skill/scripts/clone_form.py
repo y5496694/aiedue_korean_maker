@@ -25,6 +25,7 @@ import os
 import re
 import sys
 import zipfile
+import html
 
 
 def extract_texts(hwpx_path):
@@ -157,33 +158,48 @@ def _prepare_keywords(keywords):
 
 
 def _apply_keywords_to_text(text, sorted_keywords):
-    """순수 텍스트에 키워드 치환을 적용한다."""
+    """순수 텍스트에 키워드 치환을 적용한다 (Fuzzy Matching 및 엔티티 대응)."""
+    # 엔티티 변환 (XML <-> 순수 텍스트)
+    decoded_text = html.unescape(text)
+    original_decoded = decoded_text
+
     for old, new in sorted_keywords:
-        if old in text:
-            text = text.replace(old, new)
-    return text
+        # 정확히 일치하거나, 앞뒤 공백 무시하고 일치하는 경우 처리
+        old_stripped = old.strip()
+        if old in decoded_text:
+            decoded_text = decoded_text.replace(old, new)
+        elif old_stripped and old_stripped in decoded_text:
+             # 공백 차이로 매칭 안되는 경우를 위한 정규식 기반 치환 (실험적)
+             pattern = re.escape(old_stripped).replace(r'\ ', r'\s*')
+             decoded_text = re.sub(pattern, new, decoded_text)
+    
+    # 변경이 없으면 원본 반환, 있으면 다시 엔티티 인코딩
+    if decoded_text == original_decoded:
+        return text
+    return html.escape(decoded_text).replace("'", "&apos;").replace('"', "&quot;")
 
 
 def _apply_keywords_in_xml(xml_text, sorted_keywords):
     """<hp:t> 태그 내부의 텍스트에만 키워드 치환을 적용한다.
-
-    인라인 XML 요소(<hp:fwSpace/>, <hp:tab/> 등)가 키워드를
-    분리하는 경우를 처리하기 위해 태그 경계에서 텍스트를 분할하여
-    각 조각에 개별적으로 치환을 적용한다.
+    
+    문서 깨짐을 방지하기 위해 태그 자체는 절대 건드리지 않고
+    내부의 텍스트 조각들만 안전하게 치환합니다.
     """
     def replace_in_t(match):
-        inner = match.group(1)
+        full_tag = match.group(0) # <hp:t>...</hp:t>
+        inner = match.group(1)    # ...
+        
         # 인라인 XML 태그로 분할
         parts = re.split(r"(<[^>]+>)", inner)
         result = []
         for part in parts:
             if part.startswith("<"):
-                # XML 태그는 그대로 유지
                 result.append(part)
             else:
-                # 텍스트 부분에만 키워드 치환 적용
+                # 엔티티 처리가 포함된 텍스트 치환 적용
                 result.append(_apply_keywords_to_text(part, sorted_keywords))
-        return "<hp:t>" + "".join(result) + "</hp:t>"
+        
+        return f"<hp:t>{''.join(result)}</hp:t>"
 
     return re.sub(r"<hp:t>(.*?)</hp:t>", replace_in_t, xml_text, flags=re.DOTALL)
 

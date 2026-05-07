@@ -17,6 +17,7 @@ temp_plan.json
 temp_kw.json
 temp_map.json
 temp_section.xml
+.webview_cache/
 
 # Output Files
 new_document.hwpx

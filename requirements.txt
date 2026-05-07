@@ -6,3 +6,4 @@ google-generativeai
 customtkinter
 pillow
 windnd
+pywebview

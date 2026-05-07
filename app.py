@@ -20,6 +20,7 @@ except ImportError:
 APP_DIR = Path(__file__).parent
 SKILL_DIR = APP_DIR / "hwpx_skill"
 SETTINGS_FILE = APP_DIR / "settings.json"
+PREVIEW_SCRIPT = APP_DIR / "preview_browser.py"
 
 # hwpx_skill/scripts를 경로에 추가
 sys.path.insert(0, str(SKILL_DIR / "scripts"))
@@ -29,14 +30,17 @@ class HWPXEditorApp(ctk.CTk):
         super().__init__()
 
         self.title("에이두 한글 에디터")
-        self.geometry("800x650")
+        self.geometry("850x700")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.api_key = self.load_settings().get("api_key", "")
+        settings = self.load_settings()
+        self.api_key = settings.get("api_key", "")
+        self.selected_model = settings.get("selected_model", "gemini-3.1-flash-lite-preview")
         self.last_output_file = ""
         self.server_thread = None
         self.server_port = 8888
+        self.preview_process = None  # 미리보기 창 프로세스
 
         self.setup_ui()
         self.check_api_and_update_ui()
@@ -155,7 +159,7 @@ class HWPXEditorApp(ctk.CTk):
         self.btn_open_file = ctk.CTkButton(self.input_frame, text="생성된 파일 열기", command=self.open_last_file, fg_color="#27ae60", hover_color="#2ecc71")
         self.btn_open_file.pack(pady=10)
         
-        self.btn_rhwp = ctk.CTkButton(self.input_frame, text="RHWP로 미리보기 (웹)", command=self.open_rhwp_preview, fg_color="#e67e22", hover_color="#d35400")
+        self.btn_rhwp = ctk.CTkButton(self.input_frame, text="📄 RHWP 미리보기", command=self.open_rhwp_preview, fg_color="#e67e22", hover_color="#d35400")
         self.btn_rhwp.pack(pady=5)
 
     def select_file(self):
@@ -175,13 +179,41 @@ class HWPXEditorApp(ctk.CTk):
                     self.mode_edit() # 자동으로 편집 모드로 전환
 
     def show_settings(self):
-        dialog = ctk.CTkInputDialog(text="Gemini API Key를 입력하세요:", title="설정")
-        key = dialog.get_input()
-        if key:
-            self.api_key = key
-            self.save_settings({"api_key": key})
-            messagebox.showinfo("완료", "API Key가 저장되었습니다. 이제 모든 기능을 사용할 수 있습니다.")
-            self.check_api_and_update_ui()
+        settings_window = ctk.CTkToplevel(self)
+        settings_window.title("설정")
+        settings_window.geometry("400x300")
+        settings_window.attributes("-topmost", True)
+
+        ctk.CTkLabel(settings_window, text="Gemini API Key:").pack(pady=(20, 5))
+        api_entry = ctk.CTkEntry(settings_window, width=300)
+        api_entry.pack(pady=5)
+        api_entry.insert(0, self.api_key)
+
+        ctk.CTkLabel(settings_window, text="AI 모델 선택:").pack(pady=(10, 5))
+        models = [
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3.1-pro-preview",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro"
+        ]
+        model_var = ctk.StringVar(value=self.selected_model)
+        model_menu = ctk.CTkOptionMenu(settings_window, values=models, variable=model_var)
+        model_menu.pack(pady=5)
+
+        def save():
+            new_key = api_entry.get().strip()
+            new_model = model_var.get()
+            if new_key:
+                self.api_key = new_key
+                self.selected_model = new_model
+                self.save_settings({"api_key": self.api_key, "selected_model": self.selected_model})
+                messagebox.showinfo("완료", "설정이 저장되었습니다.")
+                self.check_api_and_update_ui()
+                settings_window.destroy()
+            else:
+                messagebox.showerror("오류", "API Key를 입력하세요.")
+
+        ctk.CTkButton(settings_window, text="저장", command=save).pack(pady=20)
 
     def open_last_file(self):
         if self.last_output_file and os.path.exists(self.last_output_file):
@@ -189,23 +221,44 @@ class HWPXEditorApp(ctk.CTk):
         else:
             messagebox.showwarning("경고", "열 수 있는 파일이 없습니다.")
 
+    def get_rhwp_url(self):
+        """RHWP 미리보기 URL을 생성합니다."""
+        rel_path = os.path.relpath(self.last_output_file, os.getcwd())
+        url_path = rel_path.replace("\\", "/")
+        return f"https://edwardkim.github.io/rhwp/?url=http://127.0.0.1:{self.server_port}/{url_path}"
+
     def open_rhwp_preview(self):
         if not self.last_output_file or not os.path.exists(self.last_output_file):
             messagebox.showwarning("경고", "미리보기할 파일이 없습니다.")
             return
 
-        # Start local server if not running
+        # 로컬 서버 시작 (아직 안 떠 있으면)
         if self.server_thread is None:
             self.start_server_in_thread()
         
-        # Construct URL
-        # We need the relative path from the current working directory
-        rel_path = os.path.relpath(self.last_output_file, os.getcwd())
-        # Replace backslashes for URL
-        url_path = rel_path.replace("\\", "/")
-        
-        rhwp_url = f"https://edwardkim.github.io/rhwp/?url=http://127.0.0.1:{self.server_port}/{url_path}"
-        webbrowser.open(rhwp_url)
+        rhwp_url = self.get_rhwp_url()
+
+        # 기존 미리보기 창이 아직 살아있으면 종료
+        if self.preview_process and self.preview_process.poll() is None:
+            self.preview_process.terminate()
+            self.preview_process = None
+
+        # pywebview 기반 미리보기 창을 별도 프로세스로 실행
+        if PREVIEW_SCRIPT.exists():
+            try:
+                python_exe = sys.executable
+                self.preview_process = subprocess.Popen(
+                    [python_exe, str(PREVIEW_SCRIPT), rhwp_url],
+                    cwd=str(APP_DIR)
+                )
+                self.status_label.configure(text="미리보기 창이 열렸습니다.", text_color="#3498db")
+            except Exception as e:
+                print(f"[미리보기 창 실행 실패] {e}")
+                # 폴백: 기본 브라우저
+                webbrowser.open(rhwp_url)
+        else:
+            # preview_browser.py가 없으면 기본 브라우저로
+            webbrowser.open(rhwp_url)
 
     def start_server_in_thread(self):
         class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -253,14 +306,16 @@ class HWPXEditorApp(ctk.CTk):
         try:
             prompt = self.prompt_text.get("1.0", "end-1c")
             genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel('gemini-3-flash-preview')
+            self.status_label.configure(text=f"모델 준비 중 ({self.selected_model})...")
+            model = genai.GenerativeModel(self.selected_model)
 
             if self.current_mode == "EDIT":
                 self.process_edit(model, prompt)
             else:
                 self.process_new(model, prompt)
 
-            self.status_label.configure(text="작업 완료!", text_color="#2ecc71")
+            print("\n[AI 작업 완료]")
+            self.status_label.configure(text="작업 완료! 생성된 파일을 확인하세요.", text_color="#2ecc71")
             self.btn_open_file.configure(state="normal")
         except Exception as e:
             self.status_label.configure(text=f"오류 발생: {str(e)}", text_color="#e74c3c")
@@ -307,8 +362,10 @@ class HWPXEditorApp(ctk.CTk):
   "keywords": {{ "기존 단어": "새 단어", ... }}
 }}
 """
+        print(f"\n[AI에게 보내는 프롬프트]\n{ai_prompt}")
         response = model.generate_content(ai_prompt)
         mapping_text = response.text.strip()
+        print(f"\n[AI 응답 원문]\n{mapping_text}")
         # Markdown backticks 제거
         if "```json" in mapping_text:
             mapping_text = mapping_text.split("```json")[1].split("```")[0].strip()
@@ -357,6 +414,7 @@ class HWPXEditorApp(ctk.CTk):
 [작성 규칙]
 1. 모든 세부 항목은 '가. 나. 다.' 형태의 말머리를 순서대로 붙이세요 (type: "item").
 2. 일반 설명이나 본문 문단은 기호 없이 작성하세요 (type: "text").
+3. 표 형태의 데이터가 필요하다면 'table' 타입을 사용하고 2열 형태의 2차원 배열(rows)로 데이터를 제공하세요 (type: "table").
 
 [응답 형식 (JSON만 출력)]
 {{
@@ -369,15 +427,17 @@ class HWPXEditorApp(ctk.CTk):
       "title": "장 제목",
       "content": [
         {{ "type": "item", "marker": "가", "text": "첫 번째 항목 내용" }},
-        {{ "type": "item", "marker": "나", "text": "두 번째 항목 내용" }},
-        {{ "type": "text", "text": "일반 설명 문단" }}
+        {{ "type": "text", "text": "일반 설명 문단" }},
+        {{ "type": "table", "rows": [["구분", "내용"], ["일시", "2026-10-15"]] }}
       ]
     }}
   ]
 }}
 """
+        print(f"\n[AI에게 보내는 프롬프트]\n{ai_prompt}")
         response = model.generate_content(ai_prompt)
         plan_text = response.text.strip()
+        print(f"\n[AI 응답 원문]\n{plan_text}")
         if "```json" in plan_text:
             plan_text = plan_text.split("```json")[1].split("```")[0].strip()
         elif "```" in plan_text:
@@ -433,12 +493,15 @@ for i, sec in enumerate(plan.get("sections", [])):
     
     for item in sec.get("content", []):
         ctype = item.get("type", "text")
-        text = item.get("text", "")
         
         if ctype == "item":
             marker = item.get("marker", "가")
+            text = item.get("text", "")
             parts.append(make_body_para(f"{{marker}}.", text))
+        elif ctype == "table":
+            parts.append(make_data_table(item.get("rows", [])))
         else:
+            text = item.get("text", "")
             parts.append(make_text_para(text, charpr="38", parapr="4"))
             
     parts.append(make_empty_line())

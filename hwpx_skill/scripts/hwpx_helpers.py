@@ -158,6 +158,82 @@ def make_body_para(marker, text, marker_charpr="18", text_charpr="38", parapr="4
     )
 
 
+# --- 데이터 표 (2열 고정 너비) ---
+def make_data_table(rows_data, text_charpr="38", text_parapr="8", border_fill_header="42", border_fill_data="51"):
+    """
+    고정 너비의 2열 데이터 표를 생성한다.
+    1열: 30mm (8504 HWPUNIT) (구분/분류용, 연회색)
+    2열: 120mm (34016 HWPUNIT) (내용용, 더 연한 회색)
+    전체: 150mm (42520 HWPUNIT)
+    
+    rows_data: [["항목1", "내용1"], ["항목2", "내용2"]] 형태의 2차원 리스트
+    """
+    table_width = 42520
+    col_widths = [8504, 34016]
+    row_height = 1000  # 최소 셀 높이 (텍스트 크기에 맞춰 자동 확장됨)
+    
+    tbl_id = next_id()
+    p_id = next_id()
+    
+    row_cnt = len(rows_data)
+    col_cnt = 2
+    total_h = row_cnt * row_height
+    
+    def data_cell(col, row, text, w, b_fill):
+        cid = next_id()
+        # 간단한 줄바꿈 처리 (예: text 내의 \n)
+        lines = str(text).split('\n')
+        p_xml = ""
+        for i, line in enumerate(lines):
+            p_cid = next_id() if i > 0 else cid
+            p_xml += (
+                f'<hp:p paraPrIDRef="{text_parapr}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{p_cid}">'
+                f'<hp:run charPrIDRef="{text_charpr}"><hp:t>{xml_escape(line)}</hp:t></hp:run></hp:p>'
+            )
+            
+        return (
+            f'<hp:tc name="" header="0" hasMargin="0" protect="0" dirty="1" borderFillIDRef="{b_fill}">'
+            f'<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" '
+            f'linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
+            f'{p_xml}'
+            f'</hp:subList>'
+            f'<hp:cellAddr colAddr="{col}" rowAddr="{row}"/>'
+            f'<hp:cellSpan colSpan="1" rowSpan="1"/>'
+            f'<hp:cellSz width="{w}" height="{row_height}"/>'
+            f'<hp:cellMargin left="283" right="283" top="141" bottom="141"/></hp:tc>'
+        )
+
+    rows_xml = ""
+    for r, row_data in enumerate(rows_data):
+        cells_xml = ""
+        for c in range(2):
+            cell_text = row_data[c] if c < len(row_data) else ""
+            if r == 0:
+                # 첫 번째 행은 모두 헤더(구분) 색상 적용
+                b_fill = border_fill_header
+            else:
+                # 두 번째 행부터는 1열(분류) 헤더 색상, 2열(내용) 데이터 색상
+                b_fill = border_fill_header if c == 0 else border_fill_data
+            cells_xml += data_cell(c, r, cell_text, col_widths[c], b_fill)
+        rows_xml += f"<hp:tr>{cells_xml}</hp:tr>"
+
+    return (
+        f'<hp:p id="{p_id}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+        f'<hp:run charPrIDRef="0">'
+        f'<hp:tbl id="{tbl_id}" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" '
+        f'textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" '
+        f'rowCnt="{row_cnt}" colCnt="{col_cnt}" cellSpacing="0" borderFillIDRef="4" noAdjust="0">'
+        f'<hp:sz width="{table_width}" widthRelTo="ABSOLUTE" height="{total_h}" heightRelTo="ABSOLUTE" protect="0"/>'
+        f'<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" '
+        f'holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" '
+        f'vertOffset="0" horzOffset="0"/>'
+        f'<hp:outMargin left="0" right="0" top="0" bottom="0"/>'
+        f'<hp:inMargin left="0" right="0" top="0" bottom="0"/>'
+        f'{rows_xml}'
+        f'</hp:tbl></hp:run></hp:p>'
+    )
+
+
 # --- 표지 배너 (3×2 컬러 테이블) ---
 def make_cover_banner(title_text, title_charpr="144", title_parapr="20",
                       bf_top=("10", "8"), bf_bottom=("9", "11"), bf_title="15"):
@@ -179,7 +255,7 @@ def make_cover_banner(title_text, title_charpr="144", title_parapr="20",
     def thin_cell(col, row, bf, w):
         cid = next_id()
         return (
-            f'<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="1" borderFillIDRef="{bf}">'
+            f'<hp:tc name="" header="0" hasMargin="0" protect="0" dirty="1" borderFillIDRef="{bf}">'
             f'<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" '
             f'linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
             f'<hp:p paraPrIDRef="2" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{cid}">'
@@ -193,7 +269,7 @@ def make_cover_banner(title_text, title_charpr="144", title_parapr="20",
 
     title_cid = next_id()
     title_cell = (
-        f'<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="1" borderFillIDRef="{bf_title}">'
+        f'<hp:tc name="" header="0" hasMargin="0" protect="0" dirty="1" borderFillIDRef="{bf_title}">'
         f'<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" '
         f'linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
         f'<hp:p paraPrIDRef="{title_parapr}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{title_cid}">'
@@ -260,7 +336,7 @@ def make_section_bar(number, title, num_charpr="81", gap_charpr="82", title_char
         f'<hp:inMargin left="0" right="0" top="0" bottom="0"/>'
         f'<hp:tr>'
         # Cell 0: 번호
-        f'<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="1" borderFillIDRef="{bf_num}">'
+        f'<hp:tc name="" header="0" hasMargin="0" protect="0" dirty="1" borderFillIDRef="{bf_num}">'
         f'<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" '
         f'linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
         f'<hp:p paraPrIDRef="21" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{p0_id}">'
@@ -270,7 +346,7 @@ def make_section_bar(number, title, num_charpr="81", gap_charpr="82", title_char
         f'<hp:cellSz width="{cell0_width}" height="3027"/>'
         f'<hp:cellMargin left="141" right="141" top="141" bottom="141"/></hp:tc>'
         # Cell 1: 간격
-        f'<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="1" borderFillIDRef="{bf_gap}">'
+        f'<hp:tc name="" header="0" hasMargin="0" protect="0" dirty="1" borderFillIDRef="{bf_gap}">'
         f'<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" '
         f'linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
         f'<hp:p paraPrIDRef="2" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{p1_id}">'
@@ -280,7 +356,7 @@ def make_section_bar(number, title, num_charpr="81", gap_charpr="82", title_char
         f'<hp:cellSz width="{cell1_width}" height="3027"/>'
         f'<hp:cellMargin left="141" right="141" top="141" bottom="141"/></hp:tc>'
         # Cell 2: 제목
-        f'<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="1" borderFillIDRef="{bf_title}">'
+        f'<hp:tc name="" header="0" hasMargin="0" protect="0" dirty="1" borderFillIDRef="{bf_title}">'
         f'<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" '
         f'linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">'
         f'<hp:p paraPrIDRef="2" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{p2_id}">'

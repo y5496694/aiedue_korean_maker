@@ -258,7 +258,7 @@ class SectionBuilder:
             char_pr = cp["charPr"]
             para_pr = cp.get("paraPr", "0")
             cell_pid = self._get_id()
-            return f'''        <hp:tc name="" header="{1 if is_header else 0}" hasMargin="0" protect="0" editable="0" dirty="1" borderFillIDRef="{bf}">
+            return f'''        <hp:tc name="" header="{1 if is_header else 0}" hasMargin="0" protect="0" dirty="1" borderFillIDRef="{bf}">
           <hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">
             <hp:p paraPrIDRef="{para_pr}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0" id="{cell_pid}">
               <hp:run charPrIDRef="{char_pr}"><hp:t>{xml_escape(text)}</hp:t></hp:run>

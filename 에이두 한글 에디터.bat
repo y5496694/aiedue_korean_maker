@@ -43,6 +43,7 @@ if not exist "venv" (
 
 :: 4. Update Check
     :: Use PowerShell to compare versions reliably (handles line endings/BOM)
+    echo [*] Checking for updates...
     powershell -Command "$local = (Get-Content version.txt -Raw).Trim(); $remote = (Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/y5496694/aiedue_korean_maker/main/version.txt').Trim(); if ($local -ne $remote) { exit 1 } else { exit 0 }"
     
     if %errorlevel% equ 1 (
@@ -62,10 +63,11 @@ if not exist "venv" (
     )
 
 :: 5. Run App
-echo [*] Activating environment and installing dependencies...
+echo [*] Activating environment...
 call venv\Scripts\activate
-python -m pip install --upgrade pip >nul 2>&1
-pip install -r requirements.txt >nul 2>&1
+
+echo [*] Checking dependencies...
+pip install -r requirements.txt
 
 echo [*] Launching App...
 python app.py
