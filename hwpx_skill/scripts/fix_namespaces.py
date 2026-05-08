@@ -52,21 +52,48 @@ def fix_hwpx_namespaces(hwpx_path):
         hwpx_path: 수정할 .hwpx 파일 경로
     """
     NS_MAP = {
-        "http://www.hancom.co.kr/hwpml/2011/head": "hh",
-        "http://www.hancom.co.kr/hwpml/2011/core": "hc",
-        "http://www.hancom.co.kr/hwpml/2011/paragraph": "hp",
-        "http://www.hancom.co.kr/hwpml/2011/section": "hs",
+        'http://www.hancom.co.kr/hwpml/2011/head': 'hh',
+        'http://www.hancom.co.kr/hwpml/2011/core': 'hc',
+        'http://www.hancom.co.kr/hwpml/2011/paragraph': 'hp',
+        'http://www.hancom.co.kr/hwpml/2011/section': 'hs',
+        'http://www.hancom.co.kr/hwpml/2011/app': 'ha',
+        'http://www.hancom.co.kr/hwpml/2016/paragraph': 'hp10',
+        'http://www.hancom.co.kr/hwpml/2011/history': 'hhs',
+        'http://www.hancom.co.kr/hwpml/2011/master-page': 'hm',
+        'http://www.hancom.co.kr/schema/2011/hpf': 'hpf',
+        'http://purl.org/dc/elements/1.1/': 'dc',
+        'http://www.idpf.org/2007/opf/': 'opf',
+        'http://www.hancom.co.kr/hwpml/2016/ooxmlchart': 'ooxmlchart',
+        'http://www.hancom.co.kr/hwpml/2016/HwpUnitChar': 'hwpunitchar',
+        'http://www.idpf.org/2007/ops': 'epub',
+        'urn:oasis:names:tc:opendocument:xmlns:config:1.0': 'config'
     }
 
     tmp_path = hwpx_path + ".tmp"
 
     with zipfile.ZipFile(hwpx_path, "r") as zin:
+        filenames = zin.namelist()
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            # 1. mimetype은 반드시 첫 번째로 (OCF 표준)
+            if "mimetype" in filenames:
+                data = zin.read("mimetype")
+                zout.writestr("mimetype", data, compress_type=zipfile.ZIP_STORED)
+
             for item in zin.infolist():
+                if item.filename == "mimetype":
+                    continue
+                
                 data = zin.read(item.filename)
 
-                if item.filename.startswith("Contents/") and item.filename.endswith(".xml"):
-                    text = data.decode("utf-8")
+                # XML 또는 HPF 파일인 경우 내용 처리
+                is_target_file = item.filename.endswith((".xml", ".hpf", ".rels"))
+                
+                if is_target_file:
+                    try:
+                        text = data.decode("utf-8")
+                    except UnicodeDecodeError:
+                        zout.writestr(item, data)
+                        continue
 
                     ns_aliases = {}
                     for match in re.finditer(r'xmlns:(ns\d+)="([^"]+)"', text):
@@ -75,21 +102,19 @@ def fix_hwpx_namespaces(hwpx_path):
                             ns_aliases[alias] = NS_MAP[uri]
 
                     for old_prefix, new_prefix in ns_aliases.items():
-                        text = text.replace(f"xmlns:{old_prefix}=", f"xmlns:{new_prefix}=")
-                        text = text.replace(f"<{old_prefix}:", f"<{new_prefix}:")
-                        text = text.replace(f"</{old_prefix}:", f"</{new_prefix}:")
+                        text = re.sub(rf'xmlns:{old_prefix}=', f'xmlns:{new_prefix}=', text)
+                        text = re.sub(rf'<{old_prefix}:', f'<{new_prefix}:', text)
+                        text = re.sub(rf'</{old_prefix}:', f'</{new_prefix}:', text)
+                        text = re.sub(rf'\s{old_prefix}:', f' {new_prefix}:', text)
 
-                    # header.xml의 itemCnt 보정 (charPr/borderFill 추가 시 필수)
                     if item.filename == "Contents/header.xml":
                         text = _fix_item_counts(text)
 
                     data = text.encode("utf-8")
-
-                # mimetype은 반드시 ZIP_STORED로 유지
-                if item.filename == "mimetype":
-                    zout.writestr(item, data, compress_type=zipfile.ZIP_STORED)
-                else:
-                    zout.writestr(item, data)
+                    
+                # 데이터가 변경된 경우(XML) 또는 원본 그대로인 경우 모두
+                # 새로운 ZipInfo를 생성하도록 filename과 compress_type만 전달하는 것이 안전함
+                zout.writestr(item.filename, data, compress_type=item.compress_type)
 
     os.replace(tmp_path, hwpx_path)
 

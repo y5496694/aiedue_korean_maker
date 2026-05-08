@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>에이두 한글 에디터</title>
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 좌측 사이드바 -->
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="app-logo">
+                <img src="icon.png" alt="Aidu Logo" width="24" height="24">
+                <span>에이두 AI</span>
+            </div>
+            <button id="btn-new-chat" class="btn-new-chat" title="새 대화">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>새 대화</span>
+            </button>
+        </div>
+        <div id="chat-log-list" class="chat-log-list">
+            <!-- 대화 로그 목록이 JS로 채워짐 -->
+        </div>
+        <div class="sidebar-footer">
+            <button id="btn-settings" class="sidebar-btn" title="설정">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>설정</span>
+            </button>
+            <button id="btn-inquiry" class="sidebar-btn" title="문의">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>문의</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- 중앙 메인 채팅 영역 -->
+    <main id="main-area" class="main-area">
+        <!-- 파일 버튼 바 -->
+        <div id="file-bar" class="file-bar" style="display:none;">
+            <!-- 생성/편집된 파일 버튼들이 JS로 채워짐 -->
+        </div>
+
+        <!-- 채팅 메시지 영역 -->
+        <div id="chat-messages" class="chat-messages">
+            <div class="welcome-message">
+                <div class="welcome-icon">📝</div>
+                <h2>에이두 한글 에디터</h2>
+                <p>한글 문서를 AI로 만들고 편집하세요.</p>
+                <div class="welcome-hints">
+                    <div class="hint">"현장체험학습 운영계획서 만들어줘"</div>
+                    <div class="hint">"이 파일 내용 요약해줘" (📎 파일 첨부)</div>
+                    <div class="hint">"날짜를 5월 15일로 수정해줘"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 입력 영역 -->
+        <div class="input-area">
+            <div class="input-wrapper">
+                <div id="attached-file-badge" class="attached-file-badge" style="display:none;">
+                    <span id="attached-file-name"></span>
+                    <button id="btn-remove-file" class="btn-remove-file" title="파일 제거">×</button>
+                </div>
+                <button id="btn-attach-file" class="btn-attach" title="한글 파일 첨부">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                </button>
+                <textarea id="message-input" class="message-input" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+                <button id="btn-send" class="btn-send" title="보내기">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+            </div>
+            <p class="input-hint">📎 버튼으로 한글 파일(.hwp, .hwpx)을 첨부할 수 있습니다</p>
+        </div>
+    </main>
+
+    <!-- 우측 RHWP 미리보기 패널 -->
+    <aside id="preview-panel" class="preview-panel" style="display:none;">
+        <div class="preview-header">
+            <span id="preview-title">문서 미리보기</span>
+            <div class="preview-actions">
+                <button id="btn-fullscreen" class="preview-btn" title="전체화면 보기">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
+                <button id="btn-close-preview" class="preview-btn" title="닫기">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+        <iframe id="preview-iframe" class="preview-iframe" src="about:blank"></iframe>
+    </aside>
+
+    <!-- 설정 모달 -->
+    <div id="settings-modal" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>설정</h3>
+                <button id="btn-close-settings" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <label for="api-key-input">Gemini API Key</label>
+                <input type="password" id="api-key-input" class="modal-input" placeholder="API Key를 입력하세요">
+                <a href="#" id="link-api-studio" class="api-link">구글 AI 스튜디오에서 API 키 발급 →</a>
+                
+                <label for="model-select">AI 모델 선택</label>
+                <select id="model-select" class="modal-select">
+                    <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (기본)</option>
+                    <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-save-settings" class="btn-primary">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 문의 모달 -->
+    <div id="inquiry-modal" class="modal" style="display:none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>문의하기</h3>
+                <button id="btn-close-inquiry" class="modal-close">×</button>
+            </div>
+            <div class="modal-body" style="text-align:center;">
+                <p style="margin-bottom:20px;">문의사항이 있으시면<br>아래 오픈 카톡방으로 연락 주세요.</p>
+                <button id="btn-open-kakao" class="btn-kakao">💬 오픈 카톡방 열기</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

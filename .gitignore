@@ -22,3 +22,7 @@ temp_section.xml
 # Output Files
 new_document.hwpx
 edited_*.hwpx
+chat_logs/
+app_legacy.py
+보관함/
+.temp_drops/

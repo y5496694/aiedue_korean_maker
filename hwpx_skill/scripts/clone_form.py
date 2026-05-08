@@ -140,14 +140,23 @@ def auto_analyze(hwpx_path, output_json=None):
     if output_json:
         with open(output_json, "w", encoding="utf-8") as f:
             f.write(output)
-        print(f"자동 분석 완료: {output_json}")
-        print(f"  구조: 테이블 {structure.get('tables', 0)}개, "
-              f"이미지 {structure.get('images', 0)}개, "
-              f"문단 {structure.get('paragraphs', 0)}개")
-        print(f"  텍스트 조각: {len(texts)}개")
-        print(f"  추천: {recommendation}")
+        try:
+            print(f"자동 분석 완료: {output_json}")
+            print(f"  구조: 테이블 {structure.get('tables', 0)}개, "
+                  f"이미지 {structure.get('images', 0)}개, "
+                  f"문단 {structure.get('paragraphs', 0)}개")
+            print(f"  텍스트 조각: {len(texts)}개")
+            # em-dash 등 특수문자 포함 가능성이 높은 recommendation 출력 시 예외 처리
+            safe_rec = recommendation.encode('cp949', errors='replace').decode('cp949')
+            print(f"  추천: {safe_rec}")
+        except UnicodeEncodeError:
+            pass
     else:
-        print(output)
+        try:
+            print(output)
+        except UnicodeEncodeError:
+            sys.stdout.buffer.write(output.encode('utf-8'))
+            sys.stdout.write('\n')
 
     return result
 
@@ -180,14 +189,14 @@ def _apply_keywords_to_text(text, sorted_keywords):
 
 
 def _apply_keywords_in_xml(xml_text, sorted_keywords):
-    """<hp:t> 태그 내부의 텍스트에만 키워드 치환을 적용한다.
+    """<hp:t> (또는 접두사가 다른 t) 태그 내부의 텍스트에만 키워드 치환을 적용한다.
     
     문서 깨짐을 방지하기 위해 태그 자체는 절대 건드리지 않고
     내부의 텍스트 조각들만 안전하게 치환합니다.
     """
     def replace_in_t(match):
-        full_tag = match.group(0) # <hp:t>...</hp:t>
-        inner = match.group(1)    # ...
+        prefix_part = match.group(1) or "" # "hp:" 등
+        inner = match.group(2)    # ...
         
         # 인라인 XML 태그로 분할
         parts = re.split(r"(<[^>]+>)", inner)
@@ -199,9 +208,11 @@ def _apply_keywords_in_xml(xml_text, sorted_keywords):
                 # 엔티티 처리가 포함된 텍스트 치환 적용
                 result.append(_apply_keywords_to_text(part, sorted_keywords))
         
-        return f"<hp:t>{''.join(result)}</hp:t>"
+        tag_name = "t"
+        return f"<{prefix_part}{tag_name}>{''.join(result)}</{prefix_part}{tag_name}>"
 
-    return re.sub(r"<hp:t>(.*?)</hp:t>", replace_in_t, xml_text, flags=re.DOTALL)
+    # <hp:t>...</hp:t> 또는 <ns1:t>...</ns1:t> 등을 모두 매칭
+    return re.sub(r"<([^>:]+:)?t>(.*?)</\1t>", replace_in_t, xml_text, flags=re.DOTALL)
 
 
 def clone(src_path, dst_path, replacements=None, keywords=None,
@@ -222,43 +233,66 @@ def clone(src_path, dst_path, replacements=None, keywords=None,
     tmp_path = dst_path + ".tmp"
 
     with zipfile.ZipFile(src_path, "r") as zin:
+        # 파일 목록 확인
+        filenames = zin.namelist()
+        
         with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            # 1. mimetype은 반드시 첫 번째로, 압축 없이 저장 (OCF 표준)
+            if "mimetype" in filenames:
+                data = zin.read("mimetype")
+                # mimetype은 절대 압축하지 않음 (ZIP_STORED)
+                zout.writestr("mimetype", data, compress_type=zipfile.ZIP_STORED)
+            
+            # 2. 나머지 파일 처리
             for item in zin.infolist():
+                if item.filename == "mimetype":
+                    continue
+                
                 data = zin.read(item.filename)
 
-                if item.filename.startswith("Contents/") and item.filename.endswith(".xml"):
-                    text = data.decode("utf-8")
+                # XML 또는 HPF 파일인 경우 내용 처리
+                is_target_file = item.filename.endswith((".xml", ".hpf"))
+                
+                if is_target_file:
+                    try:
+                        text = data.decode("utf-8")
 
-                    # Phase 1: 구문 수준 치환 (전체 XML)
-                    for old, new in replacements.items():
-                        text = text.replace(old, new)
+                        # 모든 치환 대상(구문 및 키워드)을 하나로 통합하여 안전하게 처리
+                        # hp:t 태그 내부에서만 치환이 이루어지도록 하여 XML 구조 파괴 방지
+                        all_replacements = dict(replacements)
+                        if keywords:
+                            all_replacements.update(keywords)
+                        
+                        final_sorted = sorted(all_replacements.items(), key=lambda x: len(x[0]), reverse=True)
+                        
+                        if final_sorted:
+                            text = _apply_keywords_in_xml(text, final_sorted)
 
-                    # Phase 2: 키워드 수준 치환 (<hp:t> 내부만)
-                    if sorted_keywords:
-                        text = _apply_keywords_in_xml(text, sorted_keywords)
+                        # 메타데이터 치환 (content.hpf의 제목/작성자)
+                        if item.filename == "Contents/content.hpf":
+                            if title:
+                                safe_title = html.escape(str(title)).replace("'", "&apos;").replace('"', "&quot;")
+                                text = re.sub(
+                                    r"(<dc:title>).*?(</dc:title>)",
+                                    rf"\1{safe_title}\2",
+                                    text,
+                                )
+                            if creator:
+                                safe_creator = html.escape(str(creator)).replace("'", "&apos;").replace('"', "&quot;")
+                                text = re.sub(
+                                    r"(<dc:creator>).*?(</dc:creator>)",
+                                    rf"\1{safe_creator}\2",
+                                    text,
+                                )
 
-                    # 메타데이터 치환 (content.hpf의 제목/작성자)
-                    if item.filename == "Contents/content.hpf":
-                        if title:
-                            text = re.sub(
-                                r"(<dc:title>).*?(</dc:title>)",
-                                rf"\1{title}\2",
-                                text,
-                            )
-                        if creator:
-                            text = re.sub(
-                                r"(<dc:creator>).*?(</dc:creator>)",
-                                rf"\1{creator}\2",
-                                text,
-                            )
+                        data = text.encode("utf-8")
+                    except UnicodeDecodeError:
+                        # XML인데 UTF-8이 아니면 그냥 복사 (드문 경우)
+                        pass
 
-                    data = text.encode("utf-8")
-
-                # mimetype은 반드시 ZIP_STORED
-                if item.filename == "mimetype":
-                    zout.writestr(item, data, compress_type=zipfile.ZIP_STORED)
-                else:
-                    zout.writestr(item, data)
+                # 데이터가 변경된 경우(XML) 또는 원본 그대로인 경우 모두
+                # 새로운 ZipInfo를 생성하도록 filename과 compress_type만 전달하는 것이 안전함
+                zout.writestr(item.filename, data, compress_type=item.compress_type)
 
     os.replace(tmp_path, dst_path)
 

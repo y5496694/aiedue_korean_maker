@@ -2,8 +2,7 @@ python-hwpx
 lxml
 pyhwp
 olefile
-google-generativeai
-customtkinter
-pillow
-windnd
+google-genai
 pywebview
+six
+windnd
