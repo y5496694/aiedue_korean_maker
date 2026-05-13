@@ -14,6 +14,7 @@ government 템플릿 기반의 표지 배너, 섹션 바, 본문, 이미지 등
 import os
 import re
 import zipfile
+from datetime import datetime
 
 # --- 네임스페이스 선언 (section0.xml 루트에 사용) ---
 NS_DECL = (
@@ -414,10 +415,12 @@ def make_image_para(binary_item_id, width=40000, height=22500, parapr="19"):
 
 
 # --- 표지 페이지 어셈블리 ---
-def make_cover_page(title, subtitle="", date="", subtitle_charpr="62", subtitle_parapr="52",
+def make_cover_page(title, subtitle="", date=None, subtitle_charpr="62", subtitle_parapr="52",
                     date_charpr="60", date_parapr="1"):
     """표지 페이지 전체 생성: 빈줄 + 배너 + 부제 + 날짜 + pageBreak."""
     parts = []
+    now = datetime.now()
+    cover_date = date or f"{now.year}년 {now.month:02d}월 {now.day:02d}일"
     for _ in range(6):
         parts.append(make_empty_line())
     parts.append(make_cover_banner(title))
@@ -426,8 +429,7 @@ def make_cover_page(title, subtitle="", date="", subtitle_charpr="62", subtitle_
         parts.append(make_text_para(subtitle, charpr=subtitle_charpr, parapr=subtitle_parapr))
     for _ in range(8):
         parts.append(make_empty_line())
-    if date:
-        parts.append(make_text_para(date, charpr=date_charpr, parapr=date_parapr))
+    parts.append(make_text_para(cover_date, charpr=date_charpr, parapr=date_parapr))
     for _ in range(4):
         parts.append(make_empty_line())
     parts.append(make_page_break())

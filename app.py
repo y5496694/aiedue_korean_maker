@@ -410,7 +410,7 @@ parts.append(f'<hs:sec {{NS_DECL}}>')
 parts.append(make_first_para(secpr, colpr))
 
 # 표지
-parts.extend(make_cover_page(plan.get("title", "제목"), plan.get("subtitle", ""), plan.get("date", "")))
+parts.extend(make_cover_page(plan.get("title", "제목")))
 
 # 섹션별 반복
 for i, sec in enumerate(plan.get("sections", [])):
